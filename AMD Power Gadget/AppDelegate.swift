@@ -107,6 +107,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !UserDefaults.standard.bool(forKey: "startAtLoginAsked") {
             UserDefaults.standard.set(true, forKey: "startAtLoginAsked")
             askStartup()
+        } else if #available(macOS 13.0, *) {
+            // Trust the system's actual state (user may toggle it in System Settings);
+            // never unregister just because our own pref was stale.
+            let registered = SMAppService.mainApp.status == .enabled
+            UserDefaults.standard.set(registered, forKey: "startAtLogin")
+            startAtLoginToggle?.state = registered ? .on : .off
         } else { applyStartAtLogin(enabled: sl) }
 
         applyStatusBarSwitch(enabled: sb)
@@ -187,6 +193,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applyStartAtLogin(enabled: Bool) {
+        startAtLoginToggle?.state = enabled ? .on : .off
+        UserDefaults.standard.set(enabled, forKey: "startAtLogin")
         if #available(macOS 13.0, *) {
             let service = SMAppService.mainApp
             do {
@@ -199,6 +207,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             } catch {
                 NSLog("SMAppService failed to update status: %@", error.localizedDescription)
+                let actual = service.status == .enabled
+                startAtLoginToggle?.state = actual ? .on : .off
+                UserDefaults.standard.set(actual, forKey: "startAtLogin")
             }
         } else {
             // Fallback for legacy macOS versions below 13.0

@@ -108,11 +108,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             UserDefaults.standard.set(true, forKey: "startAtLoginAsked")
             askStartup()
         } else if #available(macOS 13.0, *) {
-            // Trust the system's actual state (user may toggle it in System Settings);
-            // never unregister just because our own pref was stale.
-            let registered = SMAppService.mainApp.status == .enabled
-            UserDefaults.standard.set(registered, forKey: "startAtLogin")
-            startAtLoginToggle?.state = registered ? .on : .off
+            // The app is ad-hoc signed, so every update/rebuild changes its identity and the
+            // system silently drops the login item (.notRegistered). Our pref records the
+            // user's intent: re-register when it is on. .requiresApproval means the user
+            // turned it off in System Settings, so respect that instead.
+            let service = SMAppService.mainApp
+            if sl && service.status == .notRegistered {
+                try? service.register()
+            }
+            let status = service.status
+            if sl && status == .requiresApproval {
+                UserDefaults.standard.set(false, forKey: "startAtLogin")
+            }
+            startAtLoginToggle?.state = status == .enabled ? .on : .off
         } else { applyStartAtLogin(enabled: sl) }
 
         applyStatusBarSwitch(enabled: sb)

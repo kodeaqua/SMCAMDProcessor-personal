@@ -1,5 +1,12 @@
 # Change Summary & Release Changelog
 
+## v3.34.2 — CPU rendezvous hardening
+
+- Restore interrupts-disabled state immediately after `sti; hlt` in both paths of the legacy `MachineIdle` callback, matching XNU's idle callback contract. Add compiler memory barriers around interrupt-state transitions.
+- Move P-state validation, diagnostic logging, and shared P-state decoding outside all-CPU rendezvous callbacks, leaving other CPUs free to handle interrupts while those operations run.
+- Serialize UserClient P-state resets with the telemetry/control rendezvous lock.
+- Investigated on Ryzen 5 4500 / Darwin 25.6.0 with repeated rendezvous-entry and GPU/TLB timeout panics. These changes address concrete callback hazards; hardware idle/load/wake validation is still required, and GPU/TLB timeout panics may have another cause.
+
 ## v3.23.1 - Audit Fixes
 
 ### Fixed

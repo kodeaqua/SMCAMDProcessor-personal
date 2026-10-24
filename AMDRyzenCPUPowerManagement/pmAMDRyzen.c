@@ -263,11 +263,11 @@ volatile uint32_t pmRyzen_last_woken_cpu=0;
 //uint32_t pmRyzen_last_idle_cpu=0;
 uint64_t pmRyzen_machine_idle(uint64_t maxDur){
 
-    __asm__ volatile("cli;");
+    __asm__ volatile("cli" ::: "memory");
     
     uint32_t cn = cpu_number();
     if (cn >= XNU_MAX_CPU) {
-        __asm__ volatile("sti;hlt;");
+        __asm__ volatile("sti; hlt; cli" ::: "memory");
         return 0;
     }
     pmProcessor_t *self = &pmRyzen_cpus[cn];
@@ -284,7 +284,12 @@ uint64_t pmRyzen_machine_idle(uint64_t maxDur){
     // Only idle strategy: sti; hlt — safe on all AMD CPUs.
     // Intel-style MONITOR/MWAIT was removed (unsafe on AMD).
     // AMD MONITORX/MWAITX may be added as a future enhancement.
-    __asm__ volatile("sti;hlt;");
+    // XNU calls MachineIdle with interrupts disabled and expects the same
+    // state on return (see machine_idle in osfmk/i386/pmCPU.c). Keep STI/HLT
+    // adjacent to avoid a lost wakeup, then disable interrupts immediately:
+    // the per-CPU accounting and P-state update below must not be reentered
+    // by an interrupt or resume on another CPU after preemption.
+    __asm__ volatile("sti; hlt; cli" ::: "memory");
 
     
     self->cpu_awake = 1;
